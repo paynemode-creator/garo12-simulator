@@ -1,5 +1,5 @@
 /*
- * GARO XII SIM v1.2 (sound on by default) — independent fan prototype, original SVG/CSS visuals.
+ * GARO XII SIM v1.4 (auto-stop on normal hits; sound on by default) — independent fan prototype, original SVG/CSS visuals.
  * Probability model (published reference specs):
  * Normal: symbols 1/437.49, GARO Charge 1/1749.97 (exclusive outcomes).
  * Symbol: 1500 balls, first battle 50% -> Extreme 7500 battle.
@@ -59,6 +59,9 @@
   s.volume=Number.isFinite(s.volume)?Math.min(1,Math.max(0,s.volume)):.7;
   s.auto=false;s.busy=false;
   let interval=null,autoTimer=null,toastTimer=null,audioCtx=null;
+  // Temporary UI state only: a real draw/CHARGE ended autoplay and awaits a manual turn.
+  let autoStoppedByHit=false;
+  let autoStopReason='';
   let chartRAF=0;
   const fmt = n => Math.round(n).toLocaleString('ko-KR');
   const randInt = (min,max) => Math.floor(Math.random()*(max-min+1))+min;
@@ -288,7 +291,9 @@
     $el.soundLabel.textContent=s.sound?'ON':'OFF';
     document.querySelectorAll('[data-speed]').forEach(el=>el.classList.toggle('active',el.dataset.speed===String(s.speed)));
     phaseView();
-    $el.statusText.textContent=`${s.busy?'연출 진행 중':s.auto?'자동 회전 중':'대기 중'} · ${s.multiplier===1?'실제 스펙':'테스트 확률'} ×${s.multiplier}`;
+    $el.statusText.textContent=autoStoppedByHit
+      ? `${autoStopReason} · ${s.busy?'당첨 연출 진행 중':'자동 OFF · 수동 회전으로 계속'}`
+      : `${s.busy?'연출 진행 중':s.auto?'자동 회전 중':'대기 중'} · ${s.multiplier===1?'실제 스펙':'테스트 확률'} ×${s.multiplier}`;
     drawChart();storage();
   }
   function escapeHtml(v){return String(v).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
@@ -363,10 +368,21 @@
     const p=Math.random();let symbol=1/437.49*s.multiplier,charge=1/1749.97*s.multiplier;
     if(p<symbol)return 'symbol';if(p<symbol+charge)return 'charge';return 'miss';
   };
+  function stopAutoAtHit(roll){
+    if(!s.auto||!['symbol','charge'].includes(roll))return;
+    s.auto=false;
+    clearTimeout(autoTimer);autoTimer=null;
+    autoStoppedByHit=true;
+    autoStopReason=roll==='charge'?'GARO CHARGE 당첨':'도안 대당 당첨';
+    // Busy remains true. Do NOT interrupt the winning sound, confrontation, or LT entry sequence.
+    render();
+  }
   async function normalTurn(force){
     s.totalSpins++;s.currentDry++;s.spent+=250/s.rate;
     const roll=normalRoll(force);phaseView();
     await showSpinning();
+    // Stop before all winner SFX and animation; the animation is still awaited normally.
+    stopAutoAtHit(roll);
     if(roll==='miss'){
       randomReels();$el.focusKicker.textContent='THE GOLDEN KNIGHT';$el.focusSub.textContent='まだ、終わらない。';
       setInfo(`${fmt(s.currentDry)}회전 · 미당첨`, 'NEXT SPIN');
@@ -436,10 +452,15 @@
   function scheduleAuto(){
     clearTimeout(autoTimer);
     if(!s.auto||s.busy)return;
-    autoTimer=setTimeout(()=>{if(s.auto&&!s.busy)executeTurn(false)},s.speed==='fast'?35:130);
+    autoTimer=setTimeout(()=>{if(s.auto&&!s.busy)executeTurn(false,'auto')},s.speed==='fast'?35:130);
   }
-  async function executeTurn(force=false){
+  async function executeTurn(force=false,source='manual'){
     if(s.busy)return;
+    // The first turn after a stopped jackpot must be initiated manually.
+    if(source!=='auto'){
+      autoStoppedByHit=false;
+      autoStopReason='';
+    }
     s.busy=true;
     const mode=s.mode;
     try{
@@ -456,6 +477,7 @@
   }
   function simulateBatch(){
     if(s.busy||s.mode!=='normal'){toast('통상 상태에서만 1,000회 실험할 수 있습니다.');return;}
+    autoStoppedByHit=false;autoStopReason='';
     if(s.auto)toggleAuto(false);
     s.busy=true;const before=s.payout;
     for(let i=1;i<=1000;i++){
@@ -489,7 +511,12 @@
     addPoint(true);render();toast(`1,000회 완료 · 총 출구슬 +${fmt(s.payout-before)}발`);
   }
   function toggleAuto(value=!s.auto){
-    s.auto=value;if(!s.auto)clearTimeout(autoTimer);
+    if(value&&autoStoppedByHit){
+      toast('당첨 후 다음 단계는 회전 시작/PUSH 버튼으로 수동 진행해주세요.');
+      return;
+    }
+    s.auto=value;
+    if(!s.auto){clearTimeout(autoTimer);autoTimer=null;}
     render();
     if(s.auto&&!s.busy)scheduleAuto();
   }
@@ -497,7 +524,8 @@
     if(s.busy){toast('연출 종료 후 초기화할 수 있습니다.');return;}
     if(!confirm('모든 회전 기록·출구슬·수지 그래프를 초기화할까요?'))return;
     const settings={speed:s.speed,rate:s.rate,multiplier:s.multiplier,sound:s.sound,volume:s.volume};
-    Object.assign(s,fresh(),settings);clearTimeout(autoTimer);clearShow();randomReels();
+    Object.assign(s,fresh(),settings);clearTimeout(autoTimer);autoTimer=null;
+    autoStoppedByHit=false;autoStopReason='';clearShow();randomReels();
     $el.focusKicker.textContent='THE GOLDEN KNIGHT';$el.focusSub.textContent='黄金の運命を切り拓け';
     setInfo('중앙 버튼 또는 SPACE로 시작','READY TO SPIN');
     render();toast('기록을 초기화했습니다.');
@@ -520,6 +548,7 @@
   $('forceWin').addEventListener('click',()=>{if(s.busy){toast('연출이 끝난 뒤 테스트하세요.');return;}toast('TEST · 이번 판정은 강제 성공으로 처리합니다.');executeTurn(true);});
   $('rushDirect').addEventListener('click',()=>{
     if(s.busy){toast('연출 종료 후 LT 직행할 수 있습니다.');return;}
+    autoStoppedByHit=false;autoStopReason='';
     s.mode='lt';s.labChain=true;s.ltEntries++;s.currentChain=0;s.testEvents++;
     setInfo('TEST · LT 직행 · 지급구슬 없음','MAKAI CHANCE LT');
     render();toast('TEST · LT 직행 (당첨 구슬은 부여되지 않습니다)');
