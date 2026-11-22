@@ -5,14 +5,14 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#090a10">
   <meta name="description" content="e牙狼12 黄金騎士極限 - 비공식 브라우저 파칭코 시뮬레이터. 실기 스펙 기반 확률과 오리지널 그래픽.">
-  <title>GARO XII | 黄金騎士極限 — Simulator v1.1</title>
-  <link rel="stylesheet" href="styles.css">
+  <title>GARO XII | 黄金騎士極限 — Simulator v1.3 · REAL MACHINE</title>
+  <link rel="stylesheet" href="styles.css?v=1.3.0">
 </head>
 <body>
   <div class="ambient ambient-a"></div><div class="ambient ambient-b"></div>
   <header class="topbar">
     <div class="brand"><div class="brand-icon">牙</div><div><div class="eyebrow">PACHINKO SIMULATION · LT 3.0 PLUS</div><h1>牙狼<span>XII</span><small>黄金騎士極限</small></h1></div></div>
-    <div class="topbar-right"><span class="live-indicator"><i></i> SIMULATOR ONLINE</span><span class="version">v1.1 · SOUND PACK</span><button class="icon-btn" id="soundToggle" title="사운드 켜기/끄기" aria-label="사운드 켜기/끄기">♪ <span id="soundLabel">OFF</span></button><button class="icon-btn" id="soundSettings" title="공식 효과음 파일 연결">⚙ 음향</button></div>
+    <div class="topbar-right"><span class="live-indicator"><i></i> SIMULATOR ONLINE</span><span class="version">v1.3 · REAL CABINET</span><button class="icon-btn" id="soundToggle" title="사운드 켜기/끄기" aria-label="사운드 켜기/끄기">♪ <span id="soundLabel">OFF</span></button><button class="icon-btn" id="soundSettings" title="공식 효과음 파일 연결">⚙ 음향</button></div>
   </header>
   <div class="app-layout">
     <aside class="panel control-panel">
@@ -22,7 +22,7 @@
       <div class="control-group"><label class="group-title" for="spinRate">회전율 <small>1,000엔당 회전</small></label><div class="inline-number"><input id="spinRate" type="number" min="5" max="40" step="0.5" inputmode="decimal" value="17"><span>回 / ¥1,000</span></div><p class="hint">4엔 파칭코 기준, 1,000엔 = 250발</p></div>
       <div class="control-group"><label class="group-title" for="probSelect">확률 배수 <small>테스트용</small></label><select id="probSelect"><option value="1">실제 스펙 ×1</option><option value="2">당첨 빈도 ×2</option><option value="5">당첨 빈도 ×5</option><option value="10">당첨 빈도 ×10</option></select><p class="hint">일반 회전의 당첨 발생률만 조정. 배틀·LT 분기 확률은 그대로입니다.</p></div>
       <div class="control-group"><div class="group-title"><span>자동 회전</span><small>연속 플레이</small></div><button id="autoToggle" class="auto-button"><span id="autoIcon">▶</span><span id="autoText">자동 회전 시작</span><span class="auto-status" id="autoStatus">OFF</span></button></div>
-      <div class="control-group"><div class="group-title"><span>효과음 패키지</span><small>NEW v1.1</small></div><button class="auto-button sound-config" id="soundSetup"><span>♫</span><span>공식 음원 연결 · 미리듣기</span><span class="auto-status" id="soundCount">0/4</span></button><p class="hint">체험용 자체 제작 효과음 4종 포함. 산세이 공식 MP3를 선택하면 자동 교체됩니다.</p></div>
+      <div class="control-group"><div class="group-title"><span>효과음 패키지</span><small>v1.3</small></div><button class="auto-button sound-config" id="soundSetup"><span>♫</span><span>공식 음원 연결 · 미리듣기</span><span class="auto-status" id="soundCount">0/4</span></button><p class="hint">체험용 자체 제작 효과음 4종 포함. 산세이 공식 MP3를 선택하면 자동 교체됩니다.</p></div>
       <div class="control-group lab-group"><div class="group-title"><span>TEST LAB</span><small>연출 테스트 · 기록 반영</small></div><div class="lab-actions"><button id="forceWin" class="ghost-btn">⚡ 강제 당첨</button><button id="rushDirect" class="ghost-btn">♛ LT 직행</button><button id="batchTest" class="ghost-btn wide">⏩ 1,000회 빠른 실험</button></div><p class="hint">TEST 기능은 실제 확률 실험에 섞이지 않도록 결과에 TEST로 표시됩니다.</p></div>
       <div class="control-footer"><button id="resetStats" class="minimal-btn">↺ 기록 초기화</button><span>로컬 자동 저장</span></div>
     </aside>
@@ -133,6 +133,6 @@
     <div class="sound-dialog-foot"><a href="https://www.sansei-rd.co.jp/p_garo_archive/download/sound.html" target="_blank" rel="noopener">↗ 산세이 공식 음원 다운로드</a><p>GitHub에는 위 4종의 MP3 파일을 assets/sfx/의 지정된 이름으로 추가하면 됩니다. 브라우저에서 파일 선택한 음원은 가능한 경우 기기에 로컬 저장됩니다.</p><button class="sound-done" id="soundDone">설정 완료</button></div>
   </dialog>
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
-  <script src="app.js"></script>
+  <script src="app.js?v=1.3.0"></script>
 </body>
 </html>

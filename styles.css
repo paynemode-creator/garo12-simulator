@@ -18,69 +18,111 @@
 
 /* v1.1 SOUND PACK */
 .sound-config{background:linear-gradient(110deg,#2b271c,#151924);border-color:#795e35}.sound-dialog{color:#ede4d4;background:linear-gradient(140deg,#171a23,#0e1017);border:1px solid #695330;border-radius:18px;box-shadow:0 24px 110px #000c;width:min(740px,calc(100vw - 28px));max-height:min(90dvh,850px);padding:0;overflow-y:auto}.sound-dialog::backdrop{background:#020306c9;backdrop-filter:blur(8px)}.sound-dialog-head{display:flex;justify-content:space-between;gap:15px;padding:25px 26px 20px;border-bottom:1px solid #36383a}.sound-dialog-head h2{font-size:22px;color:#ffdc97}.sound-dialog-head p{font-size:12px;color:#a6a3a0;margin-top:8px;line-height:1.65}.sound-close{background:#2b2c32;color:#f6d99f;border:1px solid #61503b;border-radius:9px;width:36px;height:36px;flex:0 0 auto}.sound-master{padding:18px 26px;border-bottom:1px solid #2e3036}.sound-master label{display:flex;justify-content:space-between;font-size:13px;font-weight:700}.sound-master input{width:100%;margin-top:10px;accent-color:#e4ac50}.sound-items{padding:7px 25px}.sound-item{display:flex;align-items:center;justify-content:space-between;gap:15px;padding:17px 0;border-bottom:1px solid #34353c}.sound-item-main{display:grid;gap:5px;min-width:0}.sound-item-main b{font-size:13px}.sound-item-main small{color:#b1ae9f;font-size:11px}.sound-item-actions{display:flex;gap:6px;align-items:center;flex:0 0 auto}.sound-item-actions button,.sound-upload{display:inline-grid;place-items:center;border-radius:8px;border:1px solid #4b4b4f;color:#e8cf9c;background:#21242d;padding:8px 10px;font-weight:800;font-size:11px;min-height:34px;cursor:pointer}.sound-upload{border-color:#977034;background:linear-gradient(120deg,#473315,#241b14);white-space:nowrap}.sound-item-actions .sound-reset{min-width:36px}.sound-dialog-foot{padding:18px 25px 26px;font-size:12px}.sound-dialog-foot a{font-weight:800}.sound-dialog-foot p{margin:8px 0 15px;color:#a6a4a0;line-height:1.8}.sound-done{width:100%;background:linear-gradient(90deg,#b88743,#f8d899);color:#21150d;border:0;border-radius:9px;padding:12px;font-weight:900}@media(max-width:600px){.topbar-right{gap:4px}.topbar-right .icon-btn{min-width:0;padding:7px 9px;font-size:10px}.sound-dialog-head{padding:18px}.sound-master{padding:14px 18px}.sound-items{padding:5px 17px}.sound-item{display:grid;gap:9px}.sound-item-actions{justify-content:flex-start}.sound-dialog-foot{padding:16px 18px}}
-/* === REAL GARO12 MAIN UI PHOTO REPLACEMENT === */
-.machine{
-  background: transparent !important;
-  box-shadow: none !important;
-  border: 0 !important;
-  padding: 0 !important;
-}
 
-.machine-crown,
-.light-rim,
-.machine-under,
-.cabinet-lower,
-.machine-base,
-.face-decal,
-.knight-svg,
-.display-grain,
-.vortex,
-.rune-circle,
-.vertical-rays{
-  display: none !important;
-}
 
-.machine-face,
-.display-border{
-  padding: 0 !important;
-  background: transparent !important;
-  border: 0 !important;
-  box-shadow: none !important;
+/* =============================================================
+   v1.3 REAL CABINET PHOTO · provided by user
+   Actual machine replaces the stylized HTML cabinet; screen UI
+   and gameplay remain interactive on top of the physical photo.
+   ============================================================= */
+.machine-column .machine {
+  width:100%; max-width:540px; aspect-ratio:1314 / 2048; height:auto;
+  position:relative; display:block; padding:0 !important;
+  margin:0 auto; border:0 !important; border-radius:0 !important;
+  box-shadow:none !important;
+  background: url('assets/img/garo12-main-ui.jpg') 50% 50% / 100% 100% no-repeat !important;
+  overflow:visible;
 }
-
-.display{
-  position: relative;
-  height: auto !important;
-  min-height: 0 !important;
-  aspect-ratio: 988 / 1516;
-  border-radius: 18px !important;
-  overflow: hidden;
-  background:
-    linear-gradient(to bottom, rgba(0,0,0,.10), rgba(0,0,0,.22)),
-    url('./garo12-main-ui.jpg') center top / contain no-repeat,
-    #090a10 !important;
+.machine-column .machine::before, .machine-column .machine::after,
+.machine-column .machine-crown, .machine-column .light-rim,
+.machine-column .face-decal, .machine-column .machine-under,
+.machine-column .machine-base, .machine-column .cabinet-medallion,
+.machine-column .knight-svg, .machine-column .display-grain,
+.machine-column .vortex, .machine-column .rune-circle,
+.machine-column .vertical-rays {display:none !important}
+.machine-column .machine-face {
+  position:absolute; inset:0; padding:0 !important;
+  border:0 !important; border-radius:0 !important;
+  box-shadow:none !important; background:transparent !important;
+  overflow:visible;
 }
-
-/* 기존 게임 텍스트/상태는 위에 보이게 유지 */
-.screen-hud,
-#screenFocus,
-#battleOverlay,
-#screenBanner,
-.screen-footer,
-#impactFlash,
-#sparkLayer{
-  z-index: 3;
+.machine-column .display-border {
+  position:absolute;
+  left:15.5%; top:25.2%; width:68%; height:43.4%;
+  padding:0 !important; background:transparent !important;
+  border:0 !important; box-shadow:none !important;
+  border-radius:4%; overflow:hidden;
 }
-
-@media (max-width:760px){
-  .display{
-    aspect-ratio: 988 / 1516;
-  }
+.machine-column .display {
+  height:100% !important; min-height:0 !important; width:100%;
+  position:relative; border:0 !important; border-radius:0 !important;
+  background:rgba(0,0,0,.055) !important;
+  box-shadow:none !important; overflow:hidden;
 }
-.screen-hud,
-#screenFocus,
-#battleOverlay,
-#screenBanner,
-.screen-footer{
-  display: none !important;
+.machine-column .display::before, .machine-column .display::after {opacity:0 !important; pointer-events:none}
+.machine-column .screen-hud{top:3%; font-size:clamp(6px,.72vw,10px); text-shadow:0 2px 6px black,0 0 6px black}
+.machine-column .screen-focus{
+  top:54%; transform:translateY(-50%); width:100%;
+  filter:drop-shadow(0 4px 11px black);
+}
+.machine-column .focus-kicker{font-size:clamp(8px,.85vw,11px)}
+.machine-column .reel {
+  font-size:clamp(40px,6.5vw,85px) !important;
+  line-height:1.08 !important; text-shadow:0 3px 5px #000,0 0 9px #000,0 0 19px #f2a93b;
+}
+.machine-column .screen-banner {
+  min-height:29px; bottom:13%; font-size:clamp(9px,1vw,13px);
+  background:linear-gradient(90deg,transparent,#050c12d9 19% 81%,transparent);
+}
+.machine-column .screen-footer {bottom:4%; font-size:clamp(7px,.72vw,10px)}
+.machine-column .battle-overlay{border-radius:8px;background:radial-gradient(ellipse at center,#59330fdd,#110a13ee 65%,#07080bdf)}
+.machine-column .battle-overlay #battleTitle {font-size:clamp(36px,6vw,71px)}
+/* Dynamic counter is aligned to the real cabinet's red LED panel. */
+.machine-column .cabinet-lower {
+  position:absolute; inset:0; width:100%; height:100%;
+  display:block; background:transparent !important;
+  border:0 !important; padding:0 !important; margin:0 !important;
+  pointer-events:none;
+}
+.machine-column .counter {
+  position:absolute; left:24.4%; top:78.3%; width:50%; height:10.7%;
+  min-width:0 !important; padding:0 !important;
+  border:0 !important; border-radius:2px !important;
+  background:rgba(7,2,5,.88) !important; box-shadow:inset 0 0 11px #e21d2455 !important;
+  display:flex; align-items:center; justify-content:center;
+  overflow:hidden;
+}
+.machine-column .counter span {display:none !important}
+.machine-column .counter strong {
+  display:block; color:#ff333b !important; font:bold clamp(28px,4.8vw,65px)/1 monospace;
+  text-shadow:0 0 8px #fc1d27,0 0 22px #f81720;
+  letter-spacing:-.055em; white-space:nowrap;
+}
+/* Actual right-side grip acts as the PUSH touch target. */
+.machine-column .sword-button {
+  position:absolute; top:25%; right:0%; width:14%; height:24%;
+  pointer-events:auto; border:0 !important; border-radius:20px !important;
+  box-shadow:none !important; background:transparent !important;
+  display:flex; align-items:center; justify-content:flex-end; flex-direction:column;
+  padding-bottom:6%; color:#fff7d2 !important;
+}
+.machine-column .sword-circle{display:none !important}
+.machine-column .sword-button small{
+  color:white;font-size:clamp(8px,1vw,12px); background:#241305d0;
+  padding:2px 5px;border:1px solid #d39935;border-radius:4px;
+  text-shadow:0 2px 4px black;
+}
+.machine-column .sword-button:hover,.machine-column .sword-button:focus-visible {
+  outline:2px solid #ffe283; outline-offset:-2px;
+}
+body.zoom-mode .machine-column .machine {max-width:540px}
+body.zoom-mode .machine-column .display {height:100% !important}
+@media(max-width:760px){
+  .machine-column .machine {max-width:470px}
+  .machine-column .reel {font-size:clamp(37px,11vw,65px) !important}
+  .machine-column .screen-focus {top:52%}
+  .machine-column .screen-hud {font-size:7px}
+  .machine-column .counter strong {font-size:clamp(25px,8vw,45px)}
+  .machine-column .screen-banner {min-height:22px; bottom:13%;font-size:9px}
+  .machine-column .battle-overlay #battleTitle {font-size:clamp(35px,12vw,65px)}
 }
