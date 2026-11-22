@@ -1,5 +1,5 @@
 /*
- * GARO XII SIM v1.1 — independent fan prototype, original SVG/CSS visuals.
+ * GARO XII SIM v1.2 (sound on by default) — independent fan prototype, original SVG/CSS visuals.
  * Probability model (published reference specs):
  * Normal: symbols 1/437.49, GARO Charge 1/1749.97 (exclusive outcomes).
  * Symbol: 1500 balls, first battle 50% -> Extreme 7500 battle.
@@ -11,6 +11,7 @@
   'use strict';
   const $ = id => document.getElementById(id);
   const KEY = 'garo12-simulator-v1';
+  const AUDIO_ON_MIGRATION_KEY = 'garo12-sound-default-on-v1_2';
   const $el = {
     display:$('display'), reels:$('reels'), focusKicker:$('focusKicker'), focusSub:$('focusSub'),
     banner:$('bannerText'), screenMessage:$('screenMessage'), screenPhase:$('screenPhase'),
@@ -32,7 +33,7 @@
   const fresh = () => ({
     totalSpins:0,currentDry:0,totalHits:0,chargeHits:0,battleEntries:0,ltEntries:0,
     currentChain:0,bestChain:0,payout:0,spent:0,mode:'normal',labChain:false,
-    speed:'1',rate:17,multiplier:1,sound:false,volume:.7,auto:false,busy:false,
+    speed:'1',rate:17,multiplier:1,sound:true,volume:.7,auto:false,busy:false,
     history:[],points:[{x:0,y:0}],lastPayout:0,testEvents:0
   });
   const s = fresh();
@@ -41,7 +42,13 @@
     if (stored && typeof stored==='object') {
       for(const k of Object.keys(fresh())) if(Object.hasOwn(stored,k) && !['auto','busy'].includes(k)) s[k] = stored[k];
     }
-  } catch(e){ /* storage unavailable; simulation still works */ }
+    // Enable sound once on the first v1.2 visit, even when v1.1 saved OFF.
+    // Subsequent manual ON/OFF preferences remain respected.
+    if(localStorage.getItem(AUDIO_ON_MIGRATION_KEY)!=='1'){
+      s.sound=true;
+      localStorage.setItem(AUDIO_ON_MIGRATION_KEY,'1');
+    }
+  } catch(e){ s.sound=true; /* storage unavailable; simulation still works */ }
   if(!['normal','battle','lt'].includes(s.mode)) s.mode='normal';
   if(!Number.isFinite(s.rate)||s.rate<5||s.rate>40) s.rate=17;
   if(![1,2,5,10].includes(+s.multiplier)) s.multiplier=1;
@@ -495,6 +502,19 @@
     setInfo('중앙 버튼 또는 SPACE로 시작','READY TO SPIN');
     render();toast('기록을 초기화했습니다.');
   }
+  // Mobile/desktop browsers require a user gesture to unlock audio.
+  // The first tap/keypress resumes the shared AudioContext; no file picker is needed.
+  function unlockAudioOnGesture(){
+    if(!s.sound)return;
+    try{
+      const Ctx=window.AudioContext||window.webkitAudioContext;
+      if(!Ctx)return;
+      audioCtx ||= new Ctx();
+      if(audioCtx.state==='suspended') audioCtx.resume().catch(()=>{});
+    }catch(e){}
+  }
+  document.addEventListener('pointerdown',unlockAudioOnGesture,{passive:true,once:true});
+  document.addEventListener('keydown',unlockAudioOnGesture,{once:true});
   $('spinButton').addEventListener('click',()=>executeTurn());
   $('swordButton').addEventListener('click',()=>{if(s.busy){audio('tap');flash();return;}executeTurn();});
   $('forceWin').addEventListener('click',()=>{if(s.busy){toast('연출이 끝난 뒤 테스트하세요.');return;}toast('TEST · 이번 판정은 강제 성공으로 처리합니다.');executeTurn(true);});
