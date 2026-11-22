@@ -18,3 +18,69 @@
 
 /* v1.1 SOUND PACK */
 .sound-config{background:linear-gradient(110deg,#2b271c,#151924);border-color:#795e35}.sound-dialog{color:#ede4d4;background:linear-gradient(140deg,#171a23,#0e1017);border:1px solid #695330;border-radius:18px;box-shadow:0 24px 110px #000c;width:min(740px,calc(100vw - 28px));max-height:min(90dvh,850px);padding:0;overflow-y:auto}.sound-dialog::backdrop{background:#020306c9;backdrop-filter:blur(8px)}.sound-dialog-head{display:flex;justify-content:space-between;gap:15px;padding:25px 26px 20px;border-bottom:1px solid #36383a}.sound-dialog-head h2{font-size:22px;color:#ffdc97}.sound-dialog-head p{font-size:12px;color:#a6a3a0;margin-top:8px;line-height:1.65}.sound-close{background:#2b2c32;color:#f6d99f;border:1px solid #61503b;border-radius:9px;width:36px;height:36px;flex:0 0 auto}.sound-master{padding:18px 26px;border-bottom:1px solid #2e3036}.sound-master label{display:flex;justify-content:space-between;font-size:13px;font-weight:700}.sound-master input{width:100%;margin-top:10px;accent-color:#e4ac50}.sound-items{padding:7px 25px}.sound-item{display:flex;align-items:center;justify-content:space-between;gap:15px;padding:17px 0;border-bottom:1px solid #34353c}.sound-item-main{display:grid;gap:5px;min-width:0}.sound-item-main b{font-size:13px}.sound-item-main small{color:#b1ae9f;font-size:11px}.sound-item-actions{display:flex;gap:6px;align-items:center;flex:0 0 auto}.sound-item-actions button,.sound-upload{display:inline-grid;place-items:center;border-radius:8px;border:1px solid #4b4b4f;color:#e8cf9c;background:#21242d;padding:8px 10px;font-weight:800;font-size:11px;min-height:34px;cursor:pointer}.sound-upload{border-color:#977034;background:linear-gradient(120deg,#473315,#241b14);white-space:nowrap}.sound-item-actions .sound-reset{min-width:36px}.sound-dialog-foot{padding:18px 25px 26px;font-size:12px}.sound-dialog-foot a{font-weight:800}.sound-dialog-foot p{margin:8px 0 15px;color:#a6a4a0;line-height:1.8}.sound-done{width:100%;background:linear-gradient(90deg,#b88743,#f8d899);color:#21150d;border:0;border-radius:9px;padding:12px;font-weight:900}@media(max-width:600px){.topbar-right{gap:4px}.topbar-right .icon-btn{min-width:0;padding:7px 9px;font-size:10px}.sound-dialog-head{padding:18px}.sound-master{padding:14px 18px}.sound-items{padding:5px 17px}.sound-item{display:grid;gap:9px}.sound-item-actions{justify-content:flex-start}.sound-dialog-foot{padding:16px 18px}}
+/* === REAL GARO12 MAIN UI PHOTO REPLACEMENT === */
+.machine{
+  background: transparent !important;
+  box-shadow: none !important;
+  border: 0 !important;
+  padding: 0 !important;
+}
+
+.machine-crown,
+.light-rim,
+.machine-under,
+.cabinet-lower,
+.machine-base,
+.face-decal,
+.knight-svg,
+.display-grain,
+.vortex,
+.rune-circle,
+.vertical-rays{
+  display: none !important;
+}
+
+.machine-face,
+.display-border{
+  padding: 0 !important;
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
+}
+
+.display{
+  position: relative;
+  height: auto !important;
+  min-height: 0 !important;
+  aspect-ratio: 988 / 1516;
+  border-radius: 18px !important;
+  overflow: hidden;
+  background:
+    linear-gradient(to bottom, rgba(0,0,0,.10), rgba(0,0,0,.22)),
+    url('./garo12-main-ui.jpg') center top / contain no-repeat,
+    #090a10 !important;
+}
+
+/* 기존 게임 텍스트/상태는 위에 보이게 유지 */
+.screen-hud,
+#screenFocus,
+#battleOverlay,
+#screenBanner,
+.screen-footer,
+#impactFlash,
+#sparkLayer{
+  z-index: 3;
+}
+
+@media (max-width:760px){
+  .display{
+    aspect-ratio: 988 / 1516;
+  }
+}
+.screen-hud,
+#screenFocus,
+#battleOverlay,
+#screenBanner,
+.screen-footer{
+  display: none !important;
+}
