@@ -1,5 +1,5 @@
 /*
- * GARO XII SIM v1.9 (hit interval history + MY95,000 complete) — independent fan prototype, original SVG/CSS visuals.
+ * GARO XII SIM v2.0 (result-synchronised event progression, hit history, MY95,000 complete) — independent fan prototype, original SVG/CSS visuals.
  * Probability model (published reference specs):
  * Normal: symbols 1/437.49, GARO Charge 1/1749.97 (exclusive outcomes).
  * Symbol: 1500 balls, first battle 50% -> Extreme 7500 battle.
@@ -88,10 +88,75 @@
   const pick = arr => arr[randInt(0,arr.length-1)];
   const posterFile = key => window.GARO_EVENT_POSTERS?.[key] || null;
   const EVENT_KEYS = ['preview_hold','preview_knight','reach_story','reach_flash','reach_2d','reach_song','reach_drive','reach_sword','reach_garosp','reach_amamiya','reach_full','charge','bigwin','first_battle','extreme_mode','extreme_shindai','battle_success','battle_fail','lt_ready_modern','lt_ready_classic','lt_ready_vfog','lt_7500','lt_1500','lt_end'];
-  const PREVIEW_KEYS=['preview_hold','preview_knight','reach_story','reach_flash'];
-  const REACH_SOFT=['reach_2d','reach_song','reach_drive'];
-  const REACH_STRONG=['reach_sword','reach_garosp','reach_amamiya','reach_full'];
+  // P-WORLD confirms the event CATEGORIES, not the full joint frequency table.
+  // These weights are simulator-only staging, never advertised as measured machine frequencies.
+  // The draw outcome is decided first; the scene script must never reverse that result.
+  const MISS_WEAK_REACH=['reach_2d','reach_2d','reach_song','reach_drive'];
+  const MISS_STRONG_REACH=['reach_sword','reach_garosp','reach_garosp','reach_amamiya'];
+  const SYMBOL_REACH=['reach_2d','reach_drive','reach_sword','reach_sword','reach_garosp','reach_garosp','reach_garosp','reach_amamiya'];
+  const GUARANTEED_SCENES = new Set(['reach_full']); // 全回転: hit-only
+  const pickWeighted = arr => arr[Math.floor(Math.random()*arr.length)];
   let previewTimer=null;
+  let lastNormalScript=null;
+  const labelScene = key => ({
+    preview_hold:'保留変化予告',preview_knight:'騎士と剣の間背景',
+    reach_story:'牙狼連続予告',reach_flash:'牙狼フラッシュ予告',
+    reach_2d:'2Dリーチ',reach_song:'楽曲SPリーチ',reach_drive:'駆動SPリーチ',
+    reach_sword:'牙狼剣舞SPリーチ',reach_garosp:'牙狼SPリーチ',
+    reach_amamiya:'牙狼SP「鵺」',reach_full:'全回転リーチ',
+    charge:'GARO CHARGE',bigwin:'図柄揃い',first_battle:'1st BATTLE',
+    battle_success:'極限7500 勝利',battle_fail:'極限7500 敗北',
+    lt_7500:'魔戒CHANCE 7500',lt_1500:'魔戒CHANCE 1500',lt_end:'魔戒CHANCE 終了'
+  }[key] || key);
+  function buildNormalScript(outcome) {
+    // Outcome-independent spin can have a weak or losing SP reach; no 'guaranteed' scene on a miss.
+    // GARO CHARGE is a separate 2R path and never plays the 10R symbol-reach sequence.
+    if(outcome==='charge')return {outcome, className:'charge', scenes:[
+      {key:'charge',phase:'2R SPECIAL NOTICE', ms:950}
+    ], finish:'charge'};
+    if(outcome==='miss'){
+      const r=Math.random();
+      if(r<.74)return {outcome,className:'quiet',scenes:[],finish:'miss'};
+      if(r<.94){
+        return {outcome,className:'weak-miss',scenes:[
+          {key:'preview_hold',phase:'先読み予告',ms:370},
+          {key:pickWeighted(MISS_WEAK_REACH),phase:'SP REACH',ms:550}
+        ],finish:'miss'};
+      }
+      return {outcome,className:'strong-miss',scenes:[
+        {key:pickWeighted(['preview_knight','reach_story','reach_flash']),phase:'強予告',ms:440},
+        {key:pickWeighted(MISS_STRONG_REACH),phase:'SP REACH',ms:700}
+      ],finish:'miss'};
+    }
+    if(outcome==='symbol'){
+      // 0.8% of symbol hits show the assured-hit 全回転. Never select it for miss/charge.
+      if(Math.random()<.008)return {outcome,className:'guaranteed-hit',scenes:[
+        {key:'preview_knight',phase:'先読み予告',ms:340},
+        {key:'reach_full',phase:'大当り濃厚 · 全回転',ms:1200}
+      ],finish:'symbol'};
+      const preview=pickWeighted(['preview_hold','preview_knight','reach_story','reach_flash']);
+      const reach=pickWeighted(SYMBOL_REACH);
+      const scenes=[{key:preview,phase:'先読み・予告',ms:390}];
+      if(reach==='reach_2d' || reach==='reach_drive'){
+        // A lower reach may develop into a higher reach before the resolved hit.
+        scenes.push({key:reach,phase:'リーチ発展',ms:420});
+        scenes.push({key:pickWeighted(['reach_garosp','reach_sword']),phase:'SP 発展',ms:660});
+      } else scenes.push({key:reach,phase:'SP REACH',ms:850});
+      return {outcome,className:'symbol-hit',scenes,finish:'symbol'};
+    }
+    throw new Error('Unknown draw outcome: '+outcome);
+  }
+  function assertNormalScript(script){
+    if(script.outcome!=='symbol' && script.scenes.some(scene=>GUARANTEED_SCENES.has(scene.key)))
+      throw new Error('Guaranteed symbol win animation entered a non-symbol result');
+    if(script.outcome==='charge' && script.scenes.some(scene=>scene.key!=='charge'))
+      throw new Error('GARO CHARGE animation contaminated by symbol reach');
+  }
+  function markPresentation(phase,detail){
+    $el.banner.textContent=phase;
+    $el.screenMessage.textContent=detail;
+  }
+
   function showEventArt(key){
     const art=$el.extremeModeArt;
     if(!art)return;
@@ -450,31 +515,47 @@
     $el.screenFocus.style.opacity='1';$el.battleOverlay.hidden=true;
     hideEventArt(true);
   }
-  async function showSpinning(roll='miss'){
+  async function showSpinning(script){
+    assertNormalScript(script);
+    lastNormalScript=script;
     clearShow();$el.reels.classList.add('spinning');
     $el.focusKicker.textContent='FATE IS IN MOTION';$el.focusSub.textContent='運命を切り拓け';
     setInfo('숫자 변동 중...', 'SPINNING');
     audio('tap');
-    const isHit=roll!=='miss';
-    // 연출 발생 빈도는 데모용: 실제 기종의 예고 신뢰도/발생률을 재현한 수치가 아님.
-    const extra=isHit || Math.random()<.17;
-    let ticks=0;clearInterval(interval);
-    interval=setInterval(()=>{randomReels();ticks++;},s.speed==='fast'?16:Math.max(35,85/Number(s.speed)));
-    if(extra){
-      $el.screenFocus.style.opacity='0';
-      showEventArt(pick(PREVIEW_KEYS));
-    }else hideEventArt(true);
-    await wait(tempo(350));
-    if(extra){
-      const key=isHit ? pick(REACH_STRONG) : pick(REACH_SOFT);
-      showEventArt(key);
+    clearInterval(interval);
+    interval=setInterval(()=>randomReels(),s.speed==='fast'?16:Math.max(35,85/Number(s.speed)));
+    try{
+      if(!script.scenes.length){
+        // Normal variation: most losing spins have no large hit-like theatrical scene.
+        await wait(tempo(890));
+      }else{
+        $el.screenFocus.style.opacity='0';
+        for(const step of script.scenes){
+          showEventArt(step.key);
+          markPresentation(step.phase,labelScene(step.key)+' · '+(script.outcome==='charge'?'GARO CHARGE': '연출 진행 중'));
+          await wait(tempo(step.ms));
+        }
+      }
+      if(script.outcome==='miss' && script.scenes.length){
+        // Retain losing reach picture while revealing failure; never reveal 777.
+        markPresentation('ハズレ · 리치 실패',labelScene(script.scenes.at(-1).key)+' · 미당첨');
+        await wait(tempo(260));
+      }
+    }finally{
+      clearInterval(interval);interval=null;$el.reels.classList.remove('spinning');
     }
-    await wait(tempo(700));
-    clearInterval(interval);interval=null;$el.reels.classList.remove('spinning');
-    if(!isHit){hideEventArt(true);$el.screenFocus.style.opacity='1';}
+    if(script.outcome==='miss'){hideEventArt(true);$el.screenFocus.style.opacity='1';}
+    if(script.outcome==='charge'){
+      // Charge uses a 2R animation, not the triple-seven symbol match.
+      setReels(3,5,7);
+    }
   }
   async function showBigWinner(amount,title='大当り',lab=false,artKey=null){
-    $el.display.classList.add('is-win','is-ready');$el.battleOverlay.hidden=true;$el.screenFocus.style.opacity='1';setReels(7,7,7);
+    $el.display.classList.add('is-win','is-ready');$el.battleOverlay.hidden=true;$el.screenFocus.style.opacity='1';
+    // 2R GARO CHARGE must not show 7揃い. LT 1500/7500 use bonus scenes rather than normal 777.
+    if(amount===300 || title==='GARO CHARGE')setReels(3,5,7);
+    else if(s.mode==='lt' || s.mode==='battle' || artKey?.startsWith('lt_'))setReels(7,5,0);
+    else setReels(7,7,7);
     $el.focusKicker.textContent=title;$el.focusSub.textContent=`+ ${fmt(amount)} BALLS`;
     $el.banner.textContent=amount===7500?'7500 EXTREME BONUS':amount===300?'GARO CHARGE':'BIG BONUS';
     $el.screenMessage.textContent=lab?'TEST 당첨 · 기록 반영':`축하합니다 · ${fmt(amount)}발 당첨`;
@@ -492,9 +573,13 @@
     if(isFirst){playSoundEffect('cfog_red');}else audio('battle');await wait(tempo(1100));
   }
   async function showBattleResult(success,message,effect=null,artKey=null){
-    $el.battleEyebrow.textContent=success?'VICTORY · BREAKTHROUGH':'DEFEAT · RETURN TO NORMAL';
-    $el.battleTitle.innerHTML=success?'勝<br>利':'敗<br>北';
-    $el.battleSub.textContent=message;$el.banner.textContent=success?'GOLDEN VICTORY':'CHALLENGE FAILED';
+    const ltEnd=artKey==='lt_end';
+    const firstStage=artKey==='first_battle';
+    $el.battleEyebrow.textContent=ltEnd?'MAKAI CHANCE · END':firstStage?'1ST BATTLE · JUDGEMENT':
+      success?'VICTORY · BREAKTHROUGH':'DEFEAT · RETURN TO NORMAL';
+    $el.battleTitle.innerHTML=ltEnd?'終<br>了':success?'勝<br>利':'敗<br>北';
+    $el.battleSub.textContent=message;
+    $el.banner.textContent=ltEnd?'LT 1,500 BONUS · 終了':success?'GOLDEN VICTORY':'CHALLENGE FAILED';
     if(artKey)showEventArt(artKey);
     if(success){flash();burst(70);if(effect)playSoundEffect(effect);else audio('win')}else audio('loss');
     await wait(tempo(success?1150:900));
@@ -515,8 +600,10 @@
   }
   async function normalTurn(force){
     s.totalSpins++;s.currentDry++;s.spent+=250/s.rate;updateMinNet();
-    const roll=normalRoll(force);phaseView();
-    await showSpinning(roll);
+    const roll=normalRoll(force);
+    const script=buildNormalScript(roll);
+    phaseView();
+    await showSpinning(script);
     // Stop before all winner SFX and animation; the animation is still awaited normally.
     stopAutoAtHit(roll);
     if(roll==='miss'){
@@ -541,7 +628,7 @@
     await showBigWinner(1500,'図柄揃い',force,'bigwin');
     await showConfrontation(true);
     const firstWin=Math.random()<.5;
-    await showBattleResult(firstWin,firstWin?'극한 7500 배틀 진입':'1,500발 획득 후 통상 복귀',null,firstWin?'battle_success':'battle_fail');
+    await showBattleResult(firstWin,firstWin?'극한 7500 배틀 진입':'1,500발 획득 후 통상 복귀',null,'first_battle');
     if(firstWin){
       s.mode='battle';s.battleEntries++;setInfo('7500 배틀 준비 · 다시 회전하세요','極限 7500 BATTLE');
       toast('1차 배틀 승리! 극한 7500 배틀 진입');
@@ -551,12 +638,14 @@
   }
   async function battleTurn(force){
     clearShow();s.busy=true;
-    await showConfrontation(false);
     const success=force||Math.random()<.5,test=force||s.labChain;
+    await showConfrontation(false);
     if(success){
-      addPayout(7500,5);s.ltEntries++;s.mode='lt';record('lt','극한 7500 승리 · LT 진입',7500,test);
+      addPayout(7500,5);s.ltEntries++;record('lt','극한 7500 승리 · LT 진입',7500,test);
       await showBattleResult(true,'7,500발 + 魔戒 CHANCE LT','battle_victory','battle_success');
       await showBigWinner(7500,'極限 7500',test,'battle_success');
+      // Change mode only AFTER the 7500 victory animation completes.
+      s.mode='lt';
       setInfo('마계 CHANCE LT 돌입 · 결전을 진행하세요','MAKAI CHANCE LT');
       toast('극한 7500 돌파! 마계 CHANCE LT 진입');
     }else{
@@ -569,9 +658,9 @@
     clearShow();$el.screenFocus.style.opacity='0';$el.battleOverlay.hidden=false;
     $el.battleOverlay.dataset.kind='lt';$el.battleEyebrow.textContent='MAKAI CHANCE · LUCKY TRIGGER';$el.battleTitle.innerHTML='魔戒<br>CHANCE';
     $el.battleSub.textContent='継続率 約76% · 7500 約25%';$el.banner.textContent='LT JUDGEMENT';
+    const roll=force?0:Math.random(),test=force||s.labChain;
     showEventArt(ltModeScene());
     audio('battle');await wait(tempo(1050));
-    const roll=force?0:Math.random(),test=force||s.labChain;
     if(roll<.25){
       addPayout(7500,5);record('lt','마계 CHANCE · 7,500발 연속',7500,test);
       await showBattleResult(true,'7,500발 · LT 계속',null,'lt_7500');
@@ -585,7 +674,8 @@
     }else{
       addPayout(1500,1);record('lt','마계 CHANCE · 1,500발 종료',1500,test);
       await showBattleResult(false,'1,500발 · LT 종료',null,'lt_end');
-      finishChain();setInfo('마계 CHANCE 종료 · 통상 복귀','MAKAI CHANCE END');
+      await showBigWinner(1500,'MAKAI END 1500',test,'lt_end');
+      finishChain();setInfo('마계 CHANCE 1,500발 종료 · 통상 복귀','MAKAI CHANCE END');
     }
   }
   function scheduleAuto(){
