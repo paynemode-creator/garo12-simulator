@@ -1,5 +1,5 @@
 /*
- * GARO XII SIM v1.6 (hit interval history + MY95,000 complete) — independent fan prototype, original SVG/CSS visuals.
+ * GARO XII SIM v1.9 (hit interval history + MY95,000 complete) — independent fan prototype, original SVG/CSS visuals.
  * Probability model (published reference specs):
  * Normal: symbols 1/437.49, GARO Charge 1/1749.97 (exclusive outcomes).
  * Symbol: 1500 balls, first battle 50% -> Extreme 7500 battle.
@@ -15,6 +15,7 @@
   const COMPLETE_TARGET = 95000;
   const $el = {
     display:$('display'), reels:$('reels'), focusKicker:$('focusKicker'), focusSub:$('focusSub'),
+    extremeModeArt:$('extremeModeArt'),
     banner:$('bannerText'), screenMessage:$('screenMessage'), screenPhase:$('screenPhase'),
     onScreenSpin:$('onScreenSpin'), battleOverlay:$('battleOverlay'), battleEyebrow:$('battleEyebrow'),
     battleTitle:$('battleTitle'), battleSub:$('battleSub'), screenFocus:$('screenFocus'),
@@ -39,7 +40,7 @@
     currentChain:0,bestChain:0,payout:0,spent:0,mode:'normal',labChain:false,
     speed:'1',rate:17,multiplier:1,sound:true,volume:.7,auto:false,busy:false,
     history:[],points:[{x:0,y:0}],lastPayout:0,testEvents:0,
-    minNet:0, completed:false,completeAt:null
+    minNet:0, completed:false,completeAt:null,extremeNotify:'sword',ltPresentation:'modern'
   });
   const s = fresh();
   try {
@@ -70,6 +71,8 @@
   if(!s.completed && oldNet-s.minNet>=COMPLETE_TARGET){s.completed=true;s.completeAt=Date.now();}
 
   s.volume=Number.isFinite(s.volume)?Math.min(1,Math.max(0,s.volume)):.7;
+  if(!['sword','shindai'].includes(s.extremeNotify))s.extremeNotify='sword';
+  if(!['modern','classic','vfog'].includes(s.ltPresentation))s.ltPresentation='modern';
   s.auto=false;s.busy=false;
   let interval=null,autoTimer=null,toastTimer=null,audioCtx=null;
   // Temporary UI state only: a real draw/CHARGE ended autoplay and awaits a manual turn.
@@ -80,6 +83,44 @@
   const randInt = (min,max) => Math.floor(Math.random()*(max-min+1))+min;
   const wait = time => new Promise(r=>setTimeout(r,time));
   const tempo = ms => s.speed==='fast' ? Math.max(14,Math.min(35,ms/40)) : ms/Number(s.speed);
+
+
+  const pick = arr => arr[randInt(0,arr.length-1)];
+  const posterFile = key => window.GARO_EVENT_POSTERS?.[key] || null;
+  const EVENT_KEYS = ['preview_hold','preview_knight','reach_story','reach_flash','reach_2d','reach_song','reach_drive','reach_sword','reach_garosp','reach_amamiya','reach_full','charge','bigwin','first_battle','extreme_mode','extreme_shindai','battle_success','battle_fail','lt_ready_modern','lt_ready_classic','lt_ready_vfog','lt_7500','lt_1500','lt_end'];
+  const PREVIEW_KEYS=['preview_hold','preview_knight','reach_story','reach_flash'];
+  const REACH_SOFT=['reach_2d','reach_song','reach_drive'];
+  const REACH_STRONG=['reach_sword','reach_garosp','reach_amamiya','reach_full'];
+  let previewTimer=null;
+  function showEventArt(key){
+    const art=$el.extremeModeArt;
+    if(!art)return;
+    const url=posterFile(key);
+    art.dataset.eventArt=key||'';
+    if(key==='extreme_mode' || !url)art.style.removeProperty('--extreme-mode-image');
+    else art.style.setProperty('--extreme-mode-image',`url("${url}")`);
+    art.classList.remove('scene-enter');void art.offsetWidth;art.classList.add('scene-enter');
+    art.style.opacity='1';art.style.visibility='visible';
+    $el.display.dataset.scene=key||'';
+  }
+  function hideEventArt(force=false){
+    const art=$el.extremeModeArt;if(!art)return;
+    art.dataset.eventArt='';art.style.removeProperty('--extreme-mode-image');
+    art.classList.remove('scene-enter');
+    art.style.opacity=force?'0':'';art.style.visibility=force?'hidden':'';
+    delete $el.display.dataset.scene;
+  }
+  function ltModeScene(){
+    return {modern:'lt_ready_modern',classic:'lt_ready_classic',vfog:'lt_ready_vfog'}[s.ltPresentation]||'lt_ready_modern';
+  }
+  function battleModeScene(){return s.extremeNotify==='shindai'?'extreme_shindai':'extreme_mode';}
+  function syncIdleEventArt(){
+    if(s.completed){hideEventArt(true);return;}
+    if(s.busy)return;
+    if(s.mode==='battle'){showEventArt(battleModeScene());return;}
+    if(s.mode==='lt'){showEventArt(ltModeScene());return;}
+    hideEventArt(true);
+  }
   const storage = () => {
     try {const obj={...s,busy:false,auto:false,points:s.points.slice(-220),history:s.history.slice(0,70)};localStorage.setItem(KEY,JSON.stringify(obj));}catch(e){}
   };
@@ -89,8 +130,17 @@
   }
   // Each asset has an original demo fallback. Licensed official sounds are user-supplied;
   // no third-party audio is included in this project.
+  const COMPLETE_VOICE_MIGRATION_KEY = 'garo12-complete-default-ja-v1_9';
+  const migrateCompleteVoice = (() => {
+    try {
+      if(!window.GARO_INLINE_SFX?.complete) return false;
+      const pending = localStorage.getItem(COMPLETE_VOICE_MIGRATION_KEY)!=='1';
+      if(pending) localStorage.setItem(COMPLETE_VOICE_MIGRATION_KEY,'1');
+      return pending;
+    } catch(e) { return false; }
+  })();
   const SOUND_KEYS=['prewin_gold','cfog_red','battle_victory','god7500','complete'];
-  const SOUND_LABELS={prewin_gold:'선축하음(금색)',cfog_red:'C.F.O.G. 빨강',battle_victory:'7500 배틀 승리',god7500:'GOD OF GARO 7500',complete:'컴플리트 완료 효과음'};
+  const SOUND_LABELS={prewin_gold:'선축하음(금색)',cfog_red:'C.F.O.G. 빨강',battle_victory:'7500 배틀 승리',god7500:'GOD OF GARO 7500',complete:'컴플리트 기능 작동 · 일본어 안내 음성'};
   const soundFiles={},soundPlayers={},soundOrigin={},soundObjectUrls={};
   let soundDb=null;
   const storeName='audio_files';
@@ -104,23 +154,34 @@
     soundPlayers[key]=player;soundOrigin[key]=kind;
     player.addEventListener('canplay',()=>{
       if(soundPlayers[key]!==player)return;
-      soundStatus(key,kind==='demo'?'기본 효과음 · 자체 제작':kind==='official'?'공식 파일 · 자동 연결':'내 음원 · 브라우저에 연결');
+      soundStatus(key,kind==='voice'?'기본 음성 · コンプリート機能が作動しました。'
+        :kind==='demo'?'기본 효과음 · 자체 제작':kind==='official'?'공식 파일 · 자동 연결':'내 음원 · 브라우저에 연결');
     },{once:true});
     player.addEventListener('error',()=>{
       if(soundPlayers[key]!==player)return;
       if(kind==='official')loadDefaultSound(key,'demo');
+      else if(kind==='voice')setSoundTrack(key,'assets/sfx/demo_complete.mp3','demo');
       else soundStatus(key,'음원 로딩 실패 · 임시 소리 사용');
     },{once:true});
     player.src=src; player.load();
   }
   function loadDefaultSound(key,stage='official'){
+    // v1.9: the user's Japanese COMPLETE announcement is the bundled default.
+    // Inlining avoids a missing MP3 on GitHub Pages after a two-file update.
+    // A manual sound upload in this browser can still override the default.
+    if(key==='complete' && window.GARO_INLINE_SFX?.complete){
+      setSoundTrack(key,window.GARO_INLINE_SFX.complete,'voice');
+      return;
+    }
     const src=stage==='official'?`assets/sfx/${key}.mp3`:(window.GARO_INLINE_SFX?.[key]||`assets/sfx/demo_${key}.mp3`);
     setSoundTrack(key,src,stage);
   }
   function playSoundEffect(key){
     if(!s.sound)return;
     const player=soundPlayers[key];
-    if(player && player.readyState>=2){
+    // Allow the COMPLETE voice to start as soon as its data URI finishes loading.
+    // The play() promise waits for media readiness; don't prematurely fall back to synth notes.
+    if(player && (key==='complete'||player.readyState>=2)){
       try {player.pause();player.currentTime=0;player.volume=s.volume;
         const p=player.play();if(p&&p.catch)p.catch(()=>audio(key==='complete'?'complete':'win'));
       }catch(e){audio(key==='complete'?'complete':'win');}
@@ -156,8 +217,14 @@
     try {const request=indexedDB.open('garo12-sound-pack-v1',1);
       request.onupgradeneeded=()=>request.result.createObjectStore(storeName);
       request.onsuccess=()=>{
-        soundDb=request.result;const tx=soundDb.transaction(storeName,'readonly');
+        soundDb=request.result;
+        if(migrateCompleteVoice){
+          try { soundDb.transaction(storeName,'readwrite').objectStore(storeName).delete('complete'); }
+          catch(e) { /* IndexedDB may be unavailable in private browsing. */ }
+        }
+        const tx=soundDb.transaction(storeName,'readonly');
         SOUND_KEYS.forEach(key=>{
+          if(key==='complete' && migrateCompleteVoice)return;
           const get=tx.objectStore(storeName).get(key);
           get.onsuccess=()=>{if(get.result instanceof Blob)connectSoundFile(key,get.result,false);};
         });
@@ -255,15 +322,16 @@
       $el.battleOverlay.hidden=s.mode==='normal';
       if(s.mode==='battle'){
         $el.battleOverlay.dataset.kind='battle';$el.battleEyebrow.textContent='EXTREME CHALLENGE';$el.battleTitle.innerHTML='極限<br>7500';
-        $el.battleSub.textContent='50% · 검을 뽑아 승리를 쟁취하라';$el.banner.textContent='運命の一撃';
+        $el.battleSub.textContent=s.extremeNotify==='shindai'?'心大願告知 · 고요 속에서 승부':'牙狼剣告知 · 검을 눌러 승부';$el.banner.textContent='運命の一撃';
         $el.screenMessage.textContent='다음 결전에서 50% 판정';
       }else if(s.mode==='lt'){
         $el.battleOverlay.dataset.kind='lt';$el.battleEyebrow.textContent='LUCKY TRIGGER · LOOP';$el.battleTitle.innerHTML='魔戒<br>CHANCE';
-        $el.battleSub.textContent='25% 7500 / 51% 1500 / 24% 종료';$el.banner.textContent='MAKAI CHANCE LT';
+        $el.battleSub.textContent='演出 '+({modern:'MODERN',classic:'CLASSIC',vfog:'V.F.O.G.'}[s.ltPresentation]||'MODERN')+' · LT 지속 약 76%';$el.banner.textContent='MAKAI CHANCE LT';
         $el.screenMessage.textContent='다음 결전에서 출구슬 결정';
       }
     }
     $el.onScreenSpin.textContent=String(s.currentDry).padStart(4,'0')+' G';
+    syncIdleEventArt();
   }
   function currentNet(){return s.payout-s.spent;}
   function updateMinNet(){s.minNet=Math.min(s.minNet,currentNet());}
@@ -336,6 +404,8 @@
     $el.autoText.textContent=s.auto?'자동 회전 중 · 정지':'자동 회전 시작';
     $el.autoIcon.textContent=s.auto?'■':'▶';$el.autoStatus.textContent=s.auto?'ON':'OFF';
     $el.spinRate.value=s.rate;$el.probSelect.value=s.multiplier;
+    if($('extremeNotify'))$('extremeNotify').value=s.extremeNotify;
+    if($('ltPresentation'))$('ltPresentation').value=s.ltPresentation;
     $el.soundLabel.textContent=s.sound?'ON':'OFF';
     document.querySelectorAll('[data-speed]').forEach(el=>el.classList.toggle('active',el.dataset.speed===String(s.speed)));
     phaseView();
@@ -378,21 +448,37 @@
   function clearShow(){
     $el.reels.classList.remove('spinning');$el.display.classList.remove('is-win','is-ready');
     $el.screenFocus.style.opacity='1';$el.battleOverlay.hidden=true;
+    hideEventArt(true);
   }
-  async function showSpinning(){
+  async function showSpinning(roll='miss'){
     clearShow();$el.reels.classList.add('spinning');
     $el.focusKicker.textContent='FATE IS IN MOTION';$el.focusSub.textContent='運命を切り拓け';
     setInfo('숫자 변동 중...', 'SPINNING');
     audio('tap');
-    let spinTicks=0;clearInterval(interval);
-    interval=setInterval(()=>{randomReels();spinTicks++},s.speed==='fast'?16:Math.max(35,85/Number(s.speed)));
-    await wait(tempo(1050));clearInterval(interval);interval=null;$el.reels.classList.remove('spinning');
+    const isHit=roll!=='miss';
+    // 연출 발생 빈도는 데모용: 실제 기종의 예고 신뢰도/발생률을 재현한 수치가 아님.
+    const extra=isHit || Math.random()<.17;
+    let ticks=0;clearInterval(interval);
+    interval=setInterval(()=>{randomReels();ticks++;},s.speed==='fast'?16:Math.max(35,85/Number(s.speed)));
+    if(extra){
+      $el.screenFocus.style.opacity='0';
+      showEventArt(pick(PREVIEW_KEYS));
+    }else hideEventArt(true);
+    await wait(tempo(350));
+    if(extra){
+      const key=isHit ? pick(REACH_STRONG) : pick(REACH_SOFT);
+      showEventArt(key);
+    }
+    await wait(tempo(700));
+    clearInterval(interval);interval=null;$el.reels.classList.remove('spinning');
+    if(!isHit){hideEventArt(true);$el.screenFocus.style.opacity='1';}
   }
-  async function showBigWinner(amount,title='大当り',lab=false){
+  async function showBigWinner(amount,title='大当り',lab=false,artKey=null){
     $el.display.classList.add('is-win','is-ready');$el.battleOverlay.hidden=true;$el.screenFocus.style.opacity='1';setReels(7,7,7);
     $el.focusKicker.textContent=title;$el.focusSub.textContent=`+ ${fmt(amount)} BALLS`;
     $el.banner.textContent=amount===7500?'7500 EXTREME BONUS':amount===300?'GARO CHARGE':'BIG BONUS';
     $el.screenMessage.textContent=lab?'TEST 당첨 · 기록 반영':`축하합니다 · ${fmt(amount)}발 당첨`;
+    showEventArt(artKey || (amount===300?'charge':amount===7500?'extreme_mode':'bigwin'));
     burst(amount===7500?85:55);flash();if(amount===7500)playSoundEffect('god7500');else audio('win');vibrate([35,45,75]);
     render();await wait(tempo(amount===7500?1450:1050));
     $el.display.classList.remove('is-win','is-ready');
@@ -402,12 +488,14 @@
     $el.battleOverlay.dataset.kind=isFirst?'first':'battle';$el.battleEyebrow.textContent=isFirst?'1ST ROUND · JUDGEMENT':'EXTREME BATTLE';
     $el.battleTitle.innerHTML=isFirst?'初戦<br>BATTLE':'極限<br>7500';
     $el.battleSub.textContent='勝利の扉が開くか';$el.banner.textContent='運命を賭けた戦い';
+    showEventArt(isFirst?'first_battle':battleModeScene());
     if(isFirst){playSoundEffect('cfog_red');}else audio('battle');await wait(tempo(1100));
   }
-  async function showBattleResult(success,message,effect=null){
+  async function showBattleResult(success,message,effect=null,artKey=null){
     $el.battleEyebrow.textContent=success?'VICTORY · BREAKTHROUGH':'DEFEAT · RETURN TO NORMAL';
     $el.battleTitle.innerHTML=success?'勝<br>利':'敗<br>北';
     $el.battleSub.textContent=message;$el.banner.textContent=success?'GOLDEN VICTORY':'CHALLENGE FAILED';
+    if(artKey)showEventArt(artKey);
     if(success){flash();burst(70);if(effect)playSoundEffect(effect);else audio('win')}else audio('loss');
     await wait(tempo(success?1150:900));
   }
@@ -428,12 +516,13 @@
   async function normalTurn(force){
     s.totalSpins++;s.currentDry++;s.spent+=250/s.rate;updateMinNet();
     const roll=normalRoll(force);phaseView();
-    await showSpinning();
+    await showSpinning(roll);
     // Stop before all winner SFX and animation; the animation is still awaited normally.
     stopAutoAtHit(roll);
     if(roll==='miss'){
       randomReels();$el.focusKicker.textContent='THE GOLDEN KNIGHT';$el.focusSub.textContent='まだ、終わらない。';
       setInfo(`${fmt(s.currentDry)}회전 · 미당첨`, 'NEXT SPIN');
+      syncIdleEventArt();
       addPoint();return;
     }
     const hitSpin=s.currentDry;
@@ -441,7 +530,7 @@
     if(roll==='charge'){
       s.chargeHits++;s.currentChain=0;s.payout+=300;s.totalHits++;
       record('charge','GARO CHARGE · 2R',300,false,hitSpin);
-      await showBigWinner(300,'GARO CHARGE');
+      await showBigWinner(300,'GARO CHARGE',false,'charge');
       $el.focusKicker.textContent='GARO CHARGE';$el.focusSub.textContent='2R · 300 BALLS';
       finishChain();setInfo('GARO CHARGE 당첨 · 통상 복귀','CHARGE COMPLETE');
       return;
@@ -449,10 +538,10 @@
     s.labChain=Boolean(force);
     addPayout(1500,1);record('normal','액정 도안 당첨 · 10R',1500,force,hitSpin);
     playSoundEffect('prewin_gold');
-    await showBigWinner(1500,'図柄揃い',force);
+    await showBigWinner(1500,'図柄揃い',force,'bigwin');
     await showConfrontation(true);
     const firstWin=Math.random()<.5;
-    await showBattleResult(firstWin,firstWin?'극한 7500 배틀 진입':'1,500발 획득 후 통상 복귀');
+    await showBattleResult(firstWin,firstWin?'극한 7500 배틀 진입':'1,500발 획득 후 통상 복귀',null,firstWin?'battle_success':'battle_fail');
     if(firstWin){
       s.mode='battle';s.battleEntries++;setInfo('7500 배틀 준비 · 다시 회전하세요','極限 7500 BATTLE');
       toast('1차 배틀 승리! 극한 7500 배틀 진입');
@@ -466,13 +555,13 @@
     const success=force||Math.random()<.5,test=force||s.labChain;
     if(success){
       addPayout(7500,5);s.ltEntries++;s.mode='lt';record('lt','극한 7500 승리 · LT 진입',7500,test);
-      await showBattleResult(true,'7,500발 + 魔戒 CHANCE LT','battle_victory');
-      await showBigWinner(7500,'極限 7500',test);
+      await showBattleResult(true,'7,500발 + 魔戒 CHANCE LT','battle_victory','battle_success');
+      await showBigWinner(7500,'極限 7500',test,'battle_success');
       setInfo('마계 CHANCE LT 돌입 · 결전을 진행하세요','MAKAI CHANCE LT');
       toast('극한 7500 돌파! 마계 CHANCE LT 진입');
     }else{
       addPayout(1500,1);record('battle','극한 7500 배틀 종료',1500,test);
-      await showBattleResult(false,'1,500발 획득 후 통상 복귀');
+      await showBattleResult(false,'1,500발 획득 후 통상 복귀',null,'battle_fail');
       finishChain();setInfo('배틀 종료 · 통상 복귀','RETURN TO NORMAL');
     }
   }
@@ -480,21 +569,22 @@
     clearShow();$el.screenFocus.style.opacity='0';$el.battleOverlay.hidden=false;
     $el.battleOverlay.dataset.kind='lt';$el.battleEyebrow.textContent='MAKAI CHANCE · LUCKY TRIGGER';$el.battleTitle.innerHTML='魔戒<br>CHANCE';
     $el.battleSub.textContent='継続率 約76% · 7500 約25%';$el.banner.textContent='LT JUDGEMENT';
+    showEventArt(ltModeScene());
     audio('battle');await wait(tempo(1050));
     const roll=force?0:Math.random(),test=force||s.labChain;
     if(roll<.25){
       addPayout(7500,5);record('lt','마계 CHANCE · 7,500발 연속',7500,test);
-      await showBattleResult(true,'7,500발 · LT 계속');
-      await showBigWinner(7500,'MAKAI 7500',test);
+      await showBattleResult(true,'7,500발 · LT 계속',null,'lt_7500');
+      await showBigWinner(7500,'MAKAI 7500',test,'lt_7500');
       setInfo('7,500발! 마계 LT 지속','MAKAI LOOP CONTINUES');
     }else if(roll<.76){
       addPayout(1500,1);record('lt','마계 CHANCE · 1,500발 지속',1500,test);
-      await showBattleResult(true,'1,500발 · LT 계속');
-      await showBigWinner(1500,'MAKAI BONUS',test);
+      await showBattleResult(true,'1,500발 · LT 계속',null,'lt_1500');
+      await showBigWinner(1500,'MAKAI BONUS',test,'lt_1500');
       setInfo('1,500발 · 마계 LT 지속','MAKAI LOOP CONTINUES');
     }else{
       addPayout(1500,1);record('lt','마계 CHANCE · 1,500발 종료',1500,test);
-      await showBattleResult(false,'1,500발 · LT 종료');
+      await showBattleResult(false,'1,500발 · LT 종료',null,'lt_end');
       finishChain();setInfo('마계 CHANCE 종료 · 통상 복귀','MAKAI CHANCE END');
     }
   }
@@ -510,6 +600,7 @@
       autoStoppedByHit=false;
       autoStopReason='';
     }
+    clearTimeout(previewTimer);previewTimer=null;
     s.busy=true;
     const mode=s.mode;
     try{
@@ -624,6 +715,24 @@
   $('probSelect').addEventListener('change',e=>{s.multiplier=Number(e.target.value);render();toast(s.multiplier===1?'실제 확률로 변경':'테스트 확률 배수가 적용되었습니다.');});
   document.querySelectorAll('[data-speed]').forEach(btn=>btn.addEventListener('click',()=>{s.speed=btn.dataset.speed;render();}));
   $('soundToggle').addEventListener('click',()=>{s.sound=!s.sound;render();audio('tap');if(s.sound)toast('효과음 ON · 음향 설정에서 테스트할 수 있습니다.');});
+  $('extremeNotify').addEventListener('change',e=>{s.extremeNotify=e.target.value;render();toast('극한7500 고지 연출 변경');});
+  $('ltPresentation').addEventListener('change',e=>{s.ltPresentation=e.target.value;render();toast('LT 연출 모드 변경 · 당첨 확률 동일');});
+  $('previewSceneButton').addEventListener('click',()=>{
+    if(s.busy||s.completed){toast('연출 중 또는 컴플리트 상태에서는 미리보기 불가');return;}
+    const key=$('previewSceneSelect').value;
+    if(!EVENT_KEYS.includes(key))return;
+    clearTimeout(previewTimer);
+    showEventArt(key);
+    $el.screenFocus.style.opacity='0';
+    $el.battleOverlay.hidden=true;
+    // Preview button sits below the cabinet on mobile; bring the game screen into view.
+    document.querySelector('.machine-column')?.scrollIntoView({behavior:'smooth',block:'start'});
+    $el.banner.textContent='演出 PREVIEW · '+key.toUpperCase();
+    $el.screenMessage.textContent='테스트 미리보기 · 추첨/기록 영향 없음';
+    previewTimer=setTimeout(()=>{if(s.busy)return;syncIdleEventArt();phaseView();
+      if(s.mode==='normal')setInfo('중앙 버튼 또는 SPACE로 시작','READY TO SPIN');
+    },4200);
+  });
   $('viewToggle').addEventListener('click',()=>{
     document.body.classList.toggle('zoom-mode');
     $('viewToggle').querySelector('small').textContent=document.body.classList.contains('zoom-mode')?'축소':'확대';
