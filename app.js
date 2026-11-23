@@ -1,5 +1,5 @@
 /*
- * GARO XII SIM v1.4 (auto-stop on normal hits; sound on by default) — independent fan prototype, original SVG/CSS visuals.
+ * GARO XII SIM v1.6 (hit interval history + MY95,000 complete) — independent fan prototype, original SVG/CSS visuals.
  * Probability model (published reference specs):
  * Normal: symbols 1/437.49, GARO Charge 1/1749.97 (exclusive outcomes).
  * Symbol: 1500 balls, first battle 50% -> Extreme 7500 battle.
@@ -12,6 +12,7 @@
   const $ = id => document.getElementById(id);
   const KEY = 'garo12-simulator-v1';
   const AUDIO_ON_MIGRATION_KEY = 'garo12-sound-default-on-v1_2';
+  const COMPLETE_TARGET = 95000;
   const $el = {
     display:$('display'), reels:$('reels'), focusKicker:$('focusKicker'), focusSub:$('focusSub'),
     banner:$('bannerText'), screenMessage:$('screenMessage'), screenPhase:$('screenPhase'),
@@ -28,13 +29,17 @@
     spentBalls:$('spentBalls'), totalSpins:$('totalSpins'), currentDry:$('currentDry'),
     totalHits:$('totalHits'), chargeHits:$('chargeHits'), battleEntries:$('battleEntries'),
     ltEntries:$('ltEntries'), currentChain:$('currentChain'), bestChain:$('bestChain'),
-    chartMin:$('chartMin'),chartMax:$('chartMax')
+    chartMin:$('chartMin'),chartMax:$('chartMax'),
+    completeProgress:$('completeProgress'), completeStatus:$('completeStatus'),
+    completeFill:$('completeFill'), completeLeft:$('completeLeft'),completeOverlay:$('completeOverlay'),
+    completeOverlayMY:$('completeOverlayMY')
   };
   const fresh = () => ({
     totalSpins:0,currentDry:0,totalHits:0,chargeHits:0,battleEntries:0,ltEntries:0,
     currentChain:0,bestChain:0,payout:0,spent:0,mode:'normal',labChain:false,
     speed:'1',rate:17,multiplier:1,sound:true,volume:.7,auto:false,busy:false,
-    history:[],points:[{x:0,y:0}],lastPayout:0,testEvents:0
+    history:[],points:[{x:0,y:0}],lastPayout:0,testEvents:0,
+    minNet:0, completed:false,completeAt:null
   });
   const s = fresh();
   try {
@@ -56,6 +61,14 @@
   if(!Array.isArray(s.history)) s.history=[];
   if(!Array.isArray(s.points)) s.points=[{x:0,y:0}];
   if(s.points.length<1) s.points=[{x:0,y:0}];
+  // Upgrade older saves using their available chart samples; do not reset saved earnings.
+  if(!Number.isFinite(s.minNet)) s.minNet=0;
+  const oldNet = (Number(s.payout)||0)-(Number(s.spent)||0);
+  s.minNet=Math.min(0,s.minNet,oldNet,...s.points.map(p=>Number(p.y)||0));
+  s.completed=Boolean(s.completed);
+  // A previous version could exceed the threshold without locking. Respect its saved balance.
+  if(!s.completed && oldNet-s.minNet>=COMPLETE_TARGET){s.completed=true;s.completeAt=Date.now();}
+
   s.volume=Number.isFinite(s.volume)?Math.min(1,Math.max(0,s.volume)):.7;
   s.auto=false;s.busy=false;
   let interval=null,autoTimer=null,toastTimer=null,audioCtx=null;
@@ -76,15 +89,15 @@
   }
   // Each asset has an original demo fallback. Licensed official sounds are user-supplied;
   // no third-party audio is included in this project.
-  const SOUND_KEYS=['prewin_gold','cfog_red','battle_victory','god7500'];
-  const SOUND_LABELS={prewin_gold:'선축하음(금색)',cfog_red:'C.F.O.G. 빨강',battle_victory:'7500 배틀 승리',god7500:'GOD OF GARO 7500'};
+  const SOUND_KEYS=['prewin_gold','cfog_red','battle_victory','god7500','complete'];
+  const SOUND_LABELS={prewin_gold:'선축하음(금색)',cfog_red:'C.F.O.G. 빨강',battle_victory:'7500 배틀 승리',god7500:'GOD OF GARO 7500',complete:'컴플리트 완료 효과음'};
   const soundFiles={},soundPlayers={},soundOrigin={},soundObjectUrls={};
   let soundDb=null;
   const storeName='audio_files';
   function soundStatus(key,message){
     const target=$('status_'+key);if(target)target.textContent=message;
     const count=SOUND_KEYS.filter(k=>['official','uploaded'].includes(soundOrigin[k])).length;
-    if($('soundCount'))$('soundCount').textContent=count+'/4';
+    if($('soundCount'))$('soundCount').textContent=count+'/'+SOUND_KEYS.length;
   }
   function setSoundTrack(key,src,kind){
     const player=new Audio(); player.preload='auto'; player.volume=s.volume;
@@ -109,9 +122,9 @@
     const player=soundPlayers[key];
     if(player && player.readyState>=2){
       try {player.pause();player.currentTime=0;player.volume=s.volume;
-        const p=player.play();if(p&&p.catch)p.catch(()=>audio('win'));
-      }catch(e){audio('win');}
-    }else audio('win');
+        const p=player.play();if(p&&p.catch)p.catch(()=>audio(key==='complete'?'complete':'win'));
+      }catch(e){audio(key==='complete'?'complete':'win');}
+    }else audio(key==='complete'?'complete':'win');
   }
   function openSoundDialog(){
     const dialog=$('soundDialog');
@@ -182,7 +195,7 @@
       audioCtx ||= new Ctx();
       if(audioCtx.state==='suspended') audioCtx.resume();
       const now=audioCtx.currentTime;
-      const notes = type==='win'?[[523,.0,.11],[659,.10,.11],[784,.22,.13],[1047,.39,.30]]:type==='loss'?[[320,0,.10],[220,.13,.19]]:type==='battle'?[[220,0,.12],[330,.13,.14],[440,.29,.20]]:[[610,0,.04],[760,.065,.035]];
+      const notes = type==='complete'?[[392,0,.24],[523,.19,.26],[659,.38,.26],[784,.56,.32],[1047,.89,.55],[1319,1.19,.52]]:type==='win'?[[523,.0,.11],[659,.10,.11],[784,.22,.13],[1047,.39,.30]]:type==='loss'?[[320,0,.10],[220,.13,.19]]:type==='battle'?[[220,0,.12],[330,.13,.14],[440,.29,.20]]:[[610,0,.04],[760,.065,.035]];
       notes.forEach(([freq,offset,dur],idx)=>{
         const osc=audioCtx.createOscillator();const gain=audioCtx.createGain();
         osc.type=type==='loss'?'sawtooth':type==='win'?'triangle':'sine';osc.frequency.setValueAtTime(freq,now+offset);
@@ -221,6 +234,7 @@
   function phaseView(){
     const names={normal:'NORMAL MODE',battle:'極限 7500 BATTLE',lt:'魔戒 CHANCE LT'};
     $el.display.dataset.phase=s.mode;
+    $el.display.dataset.extremeStage = s.mode==='battle'?(s.busy?'action':'ready'):'off';
     $el.screenPhase.textContent=names[s.mode];
     $el.modeMini.textContent=s.mode==='normal'?'NORMAL':s.mode==='battle'?'BATTLE':'MAKAI LT';
     ['Normal','Battle','LT'].forEach((key)=>{
@@ -229,7 +243,13 @@
     });
     $el.spinLabel.textContent=s.busy?'연출 진행 중':s.mode==='normal'?'회전 시작':s.mode==='battle'?'7500 결전': '마계 LT 결전';
     $el.spinSublabel.textContent=s.busy?'RESULT IN PROGRESS':s.mode==='normal'?'SPACE · TAP TO SPIN':'SPACE · RESOLVE BATTLE';
-    $el.spinButton.disabled=s.busy;
+    $el.spinButton.disabled=s.busy||s.completed;
+    if(s.completed){
+      $el.display.dataset.phase='complete';
+      $el.modeMini.textContent='COMPLETE';
+      $el.spinLabel.textContent='컴플리트 · 플레이 종료';
+      $el.spinSublabel.textContent='RESET TO START NEW DAY';
+    }
     if(!s.busy){
       $el.screenFocus.style.opacity=s.mode==='normal'?'1':'0';
       $el.battleOverlay.hidden=s.mode==='normal';
@@ -245,15 +265,31 @@
     }
     $el.onScreenSpin.textContent=String(s.currentDry).padStart(4,'0')+' G';
   }
+  function currentNet(){return s.payout-s.spent;}
+  function updateMinNet(){s.minNet=Math.min(s.minNet,currentNet());}
+  function completeMY(){return Math.max(0,Math.round(currentNet()-s.minNet));}
+  function hasReachedComplete(){return completeMY()>=COMPLETE_TARGET;}
+  function markComplete(){
+    if(s.completed)return;
+    s.completed=true;s.completeAt=Date.now();s.auto=false;
+    clearTimeout(autoTimer);autoTimer=null;
+    s.history.unshift({type:'complete',title:'コンプリート 달성 · MY 95,000발',balls:0,test:false,
+      spin:s.totalSpins,hitSpin:null,time:Date.now()});
+    s.history=s.history.slice(0,70);
+    addPoint(true);
+    playSoundEffect('complete');
+    burst(150);flash();vibrate([180,80,220,80,280]);
+    toast('COMPLETE! MY 95,000발 달성 · 플레이 종료');
+  }
   function addPoint(force=false){
     const p={x:s.totalSpins,y:Math.round(s.payout-s.spent)};
     if(force||s.totalSpins%4===0||s.points.length===1)s.points.push(p);
     if(s.points.length>240)s.points=[s.points[0],...s.points.filter((_,i)=>i%2===0).slice(-190)];
   }
-  function record(type,title,balls,test=false){
+  function record(type,title,balls,test=false,hitSpin=0){
     s.lastPayout=balls;
     if(test)s.testEvents++;
-    s.history.unshift({type,title,balls,test,spin:s.totalSpins,time:Date.now()});
+    s.history.unshift({type,title,balls,test,spin:s.totalSpins,hitSpin:Math.max(0,Math.round(hitSpin)),time:Date.now()});
     s.history=s.history.slice(0,70);
     addPoint(true);
   }
@@ -268,6 +304,14 @@
   function setInfo(msg,tag){$el.screenMessage.textContent=msg;$el.banner.textContent=tag||msg;}
   function render(){
     const net=Math.round(s.payout-s.spent);
+    const my=completeMY();
+    const pct=Math.min(100,Math.max(0,my/COMPLETE_TARGET*100));
+    $el.completeProgress.textContent=`${fmt(my)} / ${fmt(COMPLETE_TARGET)}발`;
+    $el.completeFill.style.width=pct.toFixed(2)+'%';
+    $el.completeLeft.textContent=s.completed?'컴플리트 달성 · 당일 플레이 종료':`남은 차구슬 ${fmt(Math.max(0,COMPLETE_TARGET-my))}발`;
+    $el.completeStatus.textContent=s.completed?'COMPLETE':pct>=95?'임박':pct>=80?'주의':'MY PROGRESS';
+    $el.completeStatus.classList.toggle('complete-warning',pct>=80&&!s.completed);
+    $el.completeStatus.classList.toggle('complete-done',s.completed);
     $el.netBalls.innerHTML=`${net>0?'+':''}${fmt(net)} <small>발</small>`;
     $el.netBalls.classList.toggle('negative',net<0);
     $el.profitDirection.textContent=net>0?'▲ PLUS':net<0?'▼ MINUS':'— ZERO';
@@ -282,16 +326,20 @@
     $el.onScreenSpin.textContent=String(s.currentDry).padStart(4,'0')+' G';
     $el.historyCount.textContent=`${s.history.length} EVENTS`;
     if(s.history.length){$el.historyList.innerHTML=s.history.slice(0,30).map(h=>
-      `<div class="history-row"><span class="history-icon ${h.type==='charge'?'charge':h.type==='lt'?'lt':''}">${h.type==='charge'?'✧':h.type==='lt'?'♛':'✦'}</span><span class="history-details"><b>${escapeHtml(h.title)}${h.test?'<span class="test-tag">TEST</span>':''}</b><small>${fmt(h.spin)} G · ${new Date(h.time).toLocaleTimeString('ko-KR',{hour:'2-digit',minute:'2-digit'})}</small></span><span class="history-payout">+${fmt(h.balls)}<small>발</small></span></div>`).join('');}
+      `<div class="history-row"><span class="history-icon ${h.type==='charge'?'charge':h.type==='lt'?'lt':h.type==='complete'?'complete':''}">${h.type==='charge'?'✧':h.type==='lt'?'♛':h.type==='complete'?'★':'✦'}</span><span class="history-details"><b>${escapeHtml(h.title)}${h.test?'<span class="test-tag">TEST</span>':''}</b><small>${h.type==='complete'?'컴플리트 · ':Number.isFinite(h.hitSpin)?(h.hitSpin===0?'연속 0G · ':'당첨 '+fmt(h.hitSpin)+'G · '):'이전 기록 · '}누적 ${fmt(h.spin)}G · ${new Date(h.time).toLocaleTimeString('ko-KR',{hour:'2-digit',minute:'2-digit'})}</small></span><span class="history-payout">${h.type==='complete'?'COMPLETE':'+'+fmt(h.balls)+'<small>발</small>'}</span></div>`).join('');}
     else $el.historyList.innerHTML='<div class="history-empty">아직 기록이 없습니다.<br>첫 회전을 시작해보세요.</div>';
     $el.autoToggle.classList.toggle('running',s.auto);
+    $el.autoToggle.disabled=s.completed;
+    ['forceWin','rushDirect','batchTest','swordButton'].forEach(id=>$(id).disabled=s.completed);
+    $el.completeOverlay.hidden=!s.completed;
+    $el.completeOverlayMY.textContent=fmt(my);
     $el.autoText.textContent=s.auto?'자동 회전 중 · 정지':'자동 회전 시작';
     $el.autoIcon.textContent=s.auto?'■':'▶';$el.autoStatus.textContent=s.auto?'ON':'OFF';
     $el.spinRate.value=s.rate;$el.probSelect.value=s.multiplier;
     $el.soundLabel.textContent=s.sound?'ON':'OFF';
     document.querySelectorAll('[data-speed]').forEach(el=>el.classList.toggle('active',el.dataset.speed===String(s.speed)));
     phaseView();
-    $el.statusText.textContent=autoStoppedByHit
+    $el.statusText.textContent=s.completed?'COMPLETE · 95,000발 달성 · 플레이 종료':autoStoppedByHit
       ? `${autoStopReason} · ${s.busy?'당첨 연출 진행 중':'자동 OFF · 수동 회전으로 계속'}`
       : `${s.busy?'연출 진행 중':s.auto?'자동 회전 중':'대기 중'} · ${s.multiplier===1?'실제 스펙':'테스트 확률'} ×${s.multiplier}`;
     drawChart();storage();
@@ -378,7 +426,7 @@
     render();
   }
   async function normalTurn(force){
-    s.totalSpins++;s.currentDry++;s.spent+=250/s.rate;
+    s.totalSpins++;s.currentDry++;s.spent+=250/s.rate;updateMinNet();
     const roll=normalRoll(force);phaseView();
     await showSpinning();
     // Stop before all winner SFX and animation; the animation is still awaited normally.
@@ -388,17 +436,18 @@
       setInfo(`${fmt(s.currentDry)}회전 · 미당첨`, 'NEXT SPIN');
       addPoint();return;
     }
+    const hitSpin=s.currentDry;
     s.currentDry=0;
     if(roll==='charge'){
       s.chargeHits++;s.currentChain=0;s.payout+=300;s.totalHits++;
-      record('charge','GARO CHARGE · 2R',300,false);
+      record('charge','GARO CHARGE · 2R',300,false,hitSpin);
       await showBigWinner(300,'GARO CHARGE');
       $el.focusKicker.textContent='GARO CHARGE';$el.focusSub.textContent='2R · 300 BALLS';
       finishChain();setInfo('GARO CHARGE 당첨 · 통상 복귀','CHARGE COMPLETE');
       return;
     }
     s.labChain=Boolean(force);
-    addPayout(1500,1);record('normal','액정 도안 당첨 · 10R',1500,force);
+    addPayout(1500,1);record('normal','액정 도안 당첨 · 10R',1500,force,hitSpin);
     playSoundEffect('prewin_gold');
     await showBigWinner(1500,'図柄揃い',force);
     await showConfrontation(true);
@@ -455,7 +504,7 @@
     autoTimer=setTimeout(()=>{if(s.auto&&!s.busy)executeTurn(false,'auto')},s.speed==='fast'?35:130);
   }
   async function executeTurn(force=false,source='manual'){
-    if(s.busy)return;
+    if(s.busy||s.completed)return;
     // The first turn after a stopped jackpot must be initiated manually.
     if(source!=='auto'){
       autoStoppedByHit=false;
@@ -468,6 +517,8 @@
       if(mode==='normal')await normalTurn(force);
       else if(mode==='battle')await battleTurn(force);
       else await ltTurn(force);
+      // Current winning/battle animation has finished. Then finalize the play lock.
+      if(hasReachedComplete())markComplete();
     }catch(e){console.error('GARO simulation error',e);toast('일시적 오류가 발생했습니다. 다시 회전하세요.');clearInterval(interval);interval=null;}
     finally{
       s.busy=false;$el.display.classList.remove('is-win','is-ready');
@@ -476,24 +527,28 @@
     }
   }
   function simulateBatch(){
+    if(s.completed){toast('컴플리트 종료 상태입니다. 기록 초기화 후 다시 시작하세요.');return;}
     if(s.busy||s.mode!=='normal'){toast('통상 상태에서만 1,000회 실험할 수 있습니다.');return;}
     autoStoppedByHit=false;autoStopReason='';
     if(s.auto)toggleAuto(false);
     s.busy=true;const before=s.payout;
+    let processed=0;
     for(let i=1;i<=1000;i++){
-      s.totalSpins++;s.currentDry++;s.spent+=250/s.rate;
+      processed=i;
+      s.totalSpins++;s.currentDry++;s.spent+=250/s.rate;updateMinNet();
       const roll=normalRoll(false);
       if(roll==='charge'){
-        s.currentDry=0;s.payout+=300;s.chargeHits++;s.totalHits++;s.lastPayout=300;
-        record('charge','GARO CHARGE · 2R',300);
+        const hitSpin=s.currentDry;s.currentDry=0;s.payout+=300;s.chargeHits++;s.totalHits++;s.lastPayout=300;
+        record('charge','GARO CHARGE · 2R',300,false,hitSpin);
       }else if(roll==='symbol'){
-        s.currentDry=0;addPayout(1500,1);record('normal','액정 도안 당첨 · 10R',1500);
-        if(Math.random()<.5){
+        const hitSpin=s.currentDry;s.currentDry=0;addPayout(1500,1);
+        record('normal','액정 도안 당첨 · 10R',1500,false,hitSpin);
+        if(!hasReachedComplete()&&Math.random()<.5){
           s.battleEntries++;
           if(Math.random()<.5){
             addPayout(7500,5);s.ltEntries++;record('lt','극한 7500 승리 · LT 진입',7500);
             let keep=true,guard=0;
-            while(keep&&guard++<10000){
+            while(keep&&guard++<10000&&!hasReachedComplete()){
               const lt=Math.random();
               if(lt<.25){addPayout(7500,5);record('lt','마계 CHANCE · 7,500발 연속',7500)}
               else if(lt<.76){addPayout(1500,1);record('lt','마계 CHANCE · 1,500발 지속',1500)}
@@ -504,13 +559,20 @@
         finishChain();
       }
       if(i%8===0)addPoint(true);
+      if(hasReachedComplete())break;
     }
     s.busy=false;s.mode='normal';s.labChain=false;
-    randomReels();$el.focusKicker.textContent='FAST SIMULATION';$el.focusSub.textContent='1000 SPINS COMPLETED';
-    setInfo('1,000회 통계 실험 완료','SIMULATION COMPLETE');
-    addPoint(true);render();toast(`1,000회 완료 · 총 출구슬 +${fmt(s.payout-before)}발`);
+    if(hasReachedComplete()){
+      markComplete();setInfo('MY 95,000발 · 컴플리트 달성','COMPLETE');
+    }else{
+      randomReels();$el.focusKicker.textContent='FAST SIMULATION';$el.focusSub.textContent='1000 SPINS COMPLETED';
+      setInfo('1,000회 통계 실험 완료','SIMULATION COMPLETE');
+      toast(`${fmt(processed)}회 완료 · 총 출구슬 +${fmt(s.payout-before)}발`);
+    }
+    addPoint(true);render();
   }
   function toggleAuto(value=!s.auto){
+    if(s.completed){toast('컴플리트 종료 상태입니다. 기록을 초기화하세요.');return;}
     if(value&&autoStoppedByHit){
       toast('당첨 후 다음 단계는 회전 시작/PUSH 버튼으로 수동 진행해주세요.');
       return;
@@ -544,10 +606,10 @@
   document.addEventListener('pointerdown',unlockAudioOnGesture,{passive:true,once:true});
   document.addEventListener('keydown',unlockAudioOnGesture,{once:true});
   $('spinButton').addEventListener('click',()=>executeTurn());
-  $('swordButton').addEventListener('click',()=>{if(s.busy){audio('tap');flash();return;}executeTurn();});
-  $('forceWin').addEventListener('click',()=>{if(s.busy){toast('연출이 끝난 뒤 테스트하세요.');return;}toast('TEST · 이번 판정은 강제 성공으로 처리합니다.');executeTurn(true);});
+  $('swordButton').addEventListener('click',()=>{if(s.completed)return;if(s.busy){audio('tap');flash();return;}executeTurn();});
+  $('forceWin').addEventListener('click',()=>{if(s.completed)return;if(s.busy){toast('연출이 끝난 뒤 테스트하세요.');return;}toast('TEST · 이번 판정은 강제 성공으로 처리합니다.');executeTurn(true);});
   $('rushDirect').addEventListener('click',()=>{
-    if(s.busy){toast('연출 종료 후 LT 직행할 수 있습니다.');return;}
+    if(s.busy||s.completed){toast(s.completed?'컴플리트 종료 상태입니다.':'연출 종료 후 LT 직행할 수 있습니다.');return;}
     autoStoppedByHit=false;autoStopReason='';
     s.mode='lt';s.labChain=true;s.ltEntries++;s.currentChain=0;s.testEvents++;
     setInfo('TEST · LT 직행 · 지급구슬 없음','MAKAI CHANCE LT');
